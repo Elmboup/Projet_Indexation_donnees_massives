@@ -1,0 +1,63 @@
+# Elastic Stack data volumes
+elasticsearch/
+
+# Logs
+*.log
+logs/
+
+# Output files
+spark/output/
+*.csv
+*.json
+!docs/*.json
+!spark/notebooks/*.ipynb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# Environment variables (IMPORTANT - contient les mots de passe)
+.env
+
+# Docker volumes
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Elasticsearch data
+data/
+
+# Backup files
+*.bak
+*.backup
+
+# Temporary files
+tmp/
+temp/

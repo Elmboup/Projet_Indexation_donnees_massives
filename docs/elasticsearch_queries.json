@@ -1,0 +1,351 @@
+{
+  "projet_velib_queries": {
+    
+    "1_requete_textuelle": {
+      "description": "Recherche textuelle - Trouver les stations dont le nom contient 'Bastille'",
+      "query": {
+        "query": {
+          "match": {
+            "name": {
+              "query": "Bastille",
+              "operator": "and"
+            }
+          }
+        },
+        "size": 10
+      }
+    },
+    
+    "2_requete_avec_aggregation": {
+      "description": "Agrégation - Statistiques de disponibilité par arrondissement",
+      "query": {
+        "size": 0,
+        "query": {
+          "range": {
+            "@timestamp": {
+              "gte": "now-1h"
+            }
+          }
+        },
+        "aggs": {
+          "par_arrondissement": {
+            "terms": {
+              "field": "arrondissement",
+              "size": 20,
+              "order": {
+                "avg_bikes": "desc"
+              }
+            },
+            "aggs": {
+              "avg_bikes": {
+                "avg": {
+                  "field": "num_bikes_available"
+                }
+              },
+              "avg_docks": {
+                "avg": {
+                  "field": "num_docks_available"
+                }
+              },
+              "avg_occupation": {
+                "avg": {
+                  "field": "occupation_rate"
+                }
+              },
+              "total_capacity": {
+                "sum": {
+                  "field": "capacity"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    
+    "3_requete_ngram": {
+      "description": "Recherche N-gram - Recherche partielle sur nom de station",
+      "query": {
+        "query": {
+          "match": {
+            "name.ngram": {
+              "query": "Tour"
+            }
+          }
+        },
+        "size": 20,
+        "_source": ["name", "num_bikes_available", "station_status"]
+      }
+    },
+    
+    "4_requete_fuzzy": {
+      "description": "Recherche floue - Tolérance aux fautes de frappe",
+      "query": {
+        "query": {
+          "fuzzy": {
+            "name": {
+              "value": "Bastile",
+              "fuzziness": "AUTO",
+              "prefix_length": 1,
+              "max_expansions": 50
+            }
+          }
+        },
+        "size": 10,
+        "_source": ["name", "location", "num_bikes_available"]
+      }
+    },
+    
+    "5_serie_temporelle": {
+      "description": "Série temporelle - Évolution de la disponibilité sur 24h",
+      "query": {
+        "size": 0,
+        "query": {
+          "range": {
+            "@timestamp": {
+              "gte": "now-24h",
+              "lte": "now"
+            }
+          }
+        },
+        "aggs": {
+          "disponibilite_temps": {
+            "date_histogram": {
+              "field": "@timestamp",
+              "fixed_interval": "1h",
+              "time_zone": "Europe/Paris",
+              "min_doc_count": 0
+            },
+            "aggs": {
+              "avg_bikes": {
+                "avg": {
+                  "field": "num_bikes_available"
+                }
+              },
+              "avg_electric": {
+                "avg": {
+                  "field": "electric_bikes"
+                }
+              },
+              "avg_mechanical": {
+                "avg": {
+                  "field": "mechanical_bikes"
+                }
+              },
+              "total_stations": {
+                "cardinality": {
+                  "field": "station_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    
+    "bonus_1_stations_vides": {
+      "description": "Trouver les stations vides dans les dernières 5 minutes",
+      "query": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "station_status": "empty"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "now-5m"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": 50,
+        "_source": ["name", "location", "num_bikes_available", "num_docks_available"],
+        "sort": [
+          {
+            "@timestamp": {
+              "order": "desc"
+            }
+          }
+        ]
+      }
+    },
+    
+    "bonus_2_geo_search": {
+      "description": "Recherche géographique - Stations dans un rayon de 500m de la Tour Eiffel",
+      "query": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match_all": {}
+              }
+            ],
+            "filter": [
+              {
+                "geo_distance": {
+                  "distance": "500m",
+                  "location": {
+                    "lat": 48.8584,
+                    "lon": 2.2945
+                  }
+                }
+              },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "now-10m"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": 20,
+        "_source": ["name", "location", "num_bikes_available", "electric_bikes", "mechanical_bikes"],
+        "sort": [
+          {
+            "_geo_distance": {
+              "location": {
+                "lat": 48.8584,
+                "lon": 2.2945
+              },
+              "order": "asc",
+              "unit": "m"
+            }
+          }
+        ]
+      }
+    },
+    
+    "bonus_3_stats_periode": {
+      "description": "Statistiques par période de la journée (matin, midi, soir, nuit)",
+      "query": {
+        "size": 0,
+        "query": {
+          "range": {
+            "@timestamp": {
+              "gte": "now-7d"
+            }
+          }
+        },
+        "aggs": {
+          "par_periode": {
+            "terms": {
+              "field": "time_period",
+              "size": 10
+            },
+            "aggs": {
+              "avg_occupation": {
+                "avg": {
+                  "field": "occupation_rate"
+                }
+              },
+              "avg_bikes": {
+                "avg": {
+                  "field": "num_bikes_available"
+                }
+              },
+              "stations_empty": {
+                "filter": {
+                  "term": {
+                    "station_status": "empty"
+                  }
+                }
+              },
+              "stations_full": {
+                "filter": {
+                  "term": {
+                    "station_status": "full"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    
+    "bonus_4_top_stations": {
+      "description": "Top 20 des stations les plus utilisées (taux d'occupation élevé)",
+      "query": {
+        "size": 0,
+        "query": {
+          "range": {
+            "@timestamp": {
+              "gte": "now-24h"
+            }
+          }
+        },
+        "aggs": {
+          "top_stations": {
+            "terms": {
+              "field": "name.keyword",
+              "size": 20,
+              "order": {
+                "avg_occupation": "desc"
+              }
+            },
+            "aggs": {
+              "avg_occupation": {
+                "avg": {
+                  "field": "occupation_rate"
+                }
+              },
+              "avg_bikes": {
+                "avg": {
+                  "field": "num_bikes_available"
+                }
+              },
+              "location_sample": {
+                "top_hits": {
+                  "size": 1,
+                  "_source": ["location", "capacity"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    
+    "bonus_5_autocomplete": {
+      "description": "Autocomplétion sur le nom de station",
+      "query": {
+        "suggest": {
+          "station-suggestion": {
+            "prefix": "Tou",
+            "completion": {
+              "field": "name.suggest",
+              "size": 10,
+              "skip_duplicates": true
+            }
+          }
+        }
+      }
+    }
+  },
+  
+  "usage_kibana_dev_tools": {
+    "exemples": [
+      "# Requête textuelle",
+      "GET velib-data-*/_search",
+      "{",
+      "  ... copier le contenu de la requête ...",
+      "}",
+      "",
+      "# Appliquer le mapping (à faire en premier)",
+      "PUT /_index_template/velib-data-template",
+      "{",
+      "  ... contenu du mapping ...",
+      "}"
+    ]
+  }
+}
