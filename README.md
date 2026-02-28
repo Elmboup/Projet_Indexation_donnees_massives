@@ -54,20 +54,9 @@ Ce projet implémente un **pipeline complet de traitement de données en temps r
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
-```
-┌─────────────┐      ┌─────────┐      ┌──────────┐      ┌──────────────┐      ┌────────┐
-│  API Vélib' │──────▶│  Kafka  │──────▶│ Logstash │──────▶│Elasticsearch │◀─────│ Kibana │
-│  (Source)   │      │Producer │      │(Transform)│      │   (Storage)  │      │ (Visu) │
-└─────────────┘      └─────────┘      └──────────┘      └──────────────┘      └────────┘
-                                                                  │
-                                                                  ▼
-                                                            ┌──────────┐
-                                                            │  Spark   │
-                                                            │(Analysis)│
-                                                            └──────────┘
-```
+![alt text](docs/Architecture.png)
 
 ### Composants :
 
