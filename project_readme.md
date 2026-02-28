@@ -299,7 +299,7 @@ Toutes les requêtes sont dans `docs/elasticsearch-queries.json`.
 
 #### 1️ Requête Textuelle
 
-Recherche de stations contenant "Bastille" :
+Recherche de stations contenant "Basilique" (requête validée avec résultats) :
 
 ```json
 GET velib-data-*/_search
@@ -307,15 +307,17 @@ GET velib-data-*/_search
   "query": {
     "match": {
       "name": {
-        "query": "Bastille",
+        "query": "Basilique",
         "operator": "and"
       }
     }
-  }
+  },
+  "size": 10
 }
 ```
 
 **Utilité** : Trouver des stations spécifiques par nom
+![Requête textuelle](docs/requete_text.png)
 
 #### 2️ Requête avec Agrégation
 
@@ -348,23 +350,27 @@ GET velib-data-*/_search
 ```
 
 **Utilité** : Analyser la répartition des stations par état
+![Requête agrégation](docs/requete_agg.png)
 
 #### 3️ Requête N-gram
 
-Recherche partielle sur nom de station :
+Recherche partielle sur nom de station (compatible mapping actuel) :
 
 ```json
 GET velib-data-*/_search
 {
   "query": {
-    "match": {
-      "name.ngram": "Tour"
+    "match_phrase_prefix": {
+      "name": "Bas"
     }
-  }
+  },
+  "size": 20,
+  "_source": ["name", "num_bikes_available", "station_status"]
 }
 ```
 
-**Utilité** : Recherche partielle (ex: "Tour" trouve "Tour Eiffel", "Tourgeville"...)
+**Utilité** : Recherche partielle/autocomplétion sur le nom de station
+![Requête N-gram / préfixe](docs/requete_ngram.png)
 
 #### 4️ Requête Fuzzy (Floue)
 
@@ -376,15 +382,20 @@ GET velib-data-*/_search
   "query": {
     "fuzzy": {
       "name": {
-        "value": "Bastile",
-        "fuzziness": "AUTO"
+        "value": "Basiliqe",
+        "fuzziness": "AUTO",
+        "prefix_length": 1,
+        "max_expansions": 50
       }
     }
-  }
+  },
+  "size": 10,
+  "_source": ["name", "location", "num_bikes_available"]
 }
 ```
 
-**Utilité** : Trouve "Bastille" même avec faute ("Bastile")
+**Utilité** : Tolérance aux fautes de frappe (ex: "Basiliqe" -> "Basilique")
+![Requête fuzzy](docs/requete_fuzzy.png)
 
 #### 5️ Série Temporelle
 
@@ -394,11 +405,21 @@ GET velib-data-*/_search
 GET velib-data-*/_search
 {
   "size": 0,
+  "query": {
+    "range": {
+      "@timestamp": {
+        "gte": "now-24h",
+        "lte": "now"
+      }
+    }
+  },
   "aggs": {
     "disponibilite_temps": {
       "date_histogram": {
         "field": "@timestamp",
-        "fixed_interval": "1h"
+        "fixed_interval": "1h",
+        "time_zone": "Europe/Paris",
+        "min_doc_count": 0
       },
       "aggs": {
         "avg_bikes": {
@@ -413,6 +434,7 @@ GET velib-data-*/_search
 ```
 
 **Utilité** : Analyser les patterns horaires d'utilisation
+![Requête série temporelle](docs/requete_serie_temp.png)
 
 ###  Requêtes Bonus
 
@@ -507,7 +529,7 @@ Le fichier `elasticsearch-queries.json` contient également :
 
 ---
 
-## ⚡ Analyse Spark
+##  Analyse Spark
 
 ###  Objectif
 
@@ -518,7 +540,7 @@ Effectuer des analyses avancées impossibles en temps réel :
 
 ###  Analyses Réalisées
 
-Le script `spark/jobs/process_velib_data.py` génère :
+Le notebook `spark/notebooks/analyse_velib.ipynb` (et le script `spark/jobs/spark_processing.py`) génère :
 
 #### 1. **Statistiques par Station**
 - Disponibilité moyenne, min, max
@@ -564,31 +586,32 @@ Le script `spark/jobs/process_velib_data.py` génère :
 
 ```bash
 # Lancer Spark (si pas déjà fait)
-docker-compose up -d spark-master spark-worker
+docker compose up -d spark
 
-# Exécuter l'analyse
-docker exec -it spark-master spark-submit \
-  --master spark://spark-master:7077 \
-  --packages org.elasticsearch:elasticsearch-spark-30_2.12:8.11.0 \
-  --conf spark.es.nodes=elasticsearch \
-  --conf spark.es.port=9200 \
-  --conf spark.es.net.http.auth.user=elastic \
-  --conf spark.es.net.http.auth.pass=changeme \
-  /opt/spark-jobs/process_velib_data.py
+# Ouvrir Jupyter Notebook Spark
+# http://localhost:8888
 
-# Récupérer les résultats
-docker cp spark-master:/opt/spark-jobs/output ./spark/
+# (Option batch) Exécuter le notebook en ligne de commande
+docker compose exec -T spark jupyter nbconvert --to notebook --execute \
+  /home/jovyan/work/analyse_velib.ipynb \
+  --output /home/jovyan/work/analyse_velib.executed.ipynb
 ```
 
 ###  Spark UI
 
-Interface web : http://localhost:8080
+Interface web : http://localhost:4040
 
 Permet de suivre :
 - Jobs en cours
 - Étapes d'exécution
 - Performance
 - Utilisation ressources
+
+### Captures Notebook Spark
+
+![Notebook Spark](docs/spark_notebook.png)
+![Chargement des données depuis Elasticsearch](docs/spark_load_data_from_elasticsearch.png)
+![Affichage des lignes de données](docs/spark_afficher_lignes.png)
 
 ---
 
@@ -621,7 +644,7 @@ Permet de suivre :
 
 ## 📸 Captures d'écran
 
-Toutes les captures sont dans `docs/screenshots/` :
+Toutes les captures sont dans `docs/` :
 ### Le Dashboad global
 ![alt text](docs/Dashboard_ensemble.png)
 
@@ -641,11 +664,11 @@ Toutes les captures sont dans `docs/screenshots/` :
 - [ ] `08-elasticsearch-count.png` - Nombre de documents
 
 ### Partie 3 : Requêtes Elasticsearch
-- [ ] `09-query-textuelle.png` - Requête + résultats
-- [ ] `10-query-aggregation.png`
-- [ ] `11-query-ngram.png`
-- [ ] `12-query-fuzzy.png`
-- [ ] `13-query-timeseries.png`
+- [x] `requete_text.png` - Requête textuelle + résultats
+- [x] `requete_agg.png` - Requête d'agrégation
+- [x] `requete_ngram.png` - Requête de recherche partielle
+- [x] `requete_fuzzy.png` - Requête floue
+- [x] `requete_serie_temp.png` - Requête série temporelle
 
 ### Partie 4 : Kibana
 - [ ] `14-index-pattern.png` - Index pattern créé
@@ -657,8 +680,11 @@ Toutes les captures sont dans `docs/screenshots/` :
 - [ ] `20-dashboard-filters.png` - Avec filtres appliqués
 
 ### Partie 5 : Spark
-- [ ] `21-spark-ui.png` - Interface Spark
-- [ ] `22-spark-execution.png` - Job en cours
+- [x] `spark_notebook.png` - Notebook d'analyse Spark
+- [x] `spark_load_data_from_elasticsearch.png` - Chargement depuis Elasticsearch
+- [x] `spark_afficher_lignes.png` - Aperçu des données
+- [ ] `21-spark-ui.png` - Interface Spark UI (optionnel)
+- [ ] `22-spark-execution.png` - Job en cours (optionnel)
 - [ ] `23-spark-results-csv.png` - Fichiers CSV générés
 - [ ] `24-spark-summary-json.png` - Résumé JSON
 
@@ -722,7 +748,7 @@ docker cp spark-master:/opt/spark-jobs/output ./resultats/
 
 ---
 
-## 🐛 Dépannage
+##  Dépannage
 
 ### Elasticsearch ne démarre pas
 

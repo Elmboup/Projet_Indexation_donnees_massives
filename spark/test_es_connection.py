@@ -73,7 +73,6 @@ try:
         .option("es.read.metadata", "false") \
         .option("es.resource", "velib-data-*") \
         .option("es.read.field.as.array.include", "num_bikes_available_types,num_docks_available_types") \
-        .option("es.query", "?size=10") \
         .load()
     
     count = df.count()
